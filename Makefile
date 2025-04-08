@@ -1,95 +1,68 @@
-################################################################
-#
-# $Id:$
-#
-# $Log:$
-#
-CC=  gcc  # gcc or g++
+Q ?= @
+CC = arm-none-eabi-gcc
+CXX = arm-none-eabi-g++
+BUILD_DIR = target
+NWLINK = npx --yes -- nwlink@0.0.16
+LINK_GC = 1
+LTO = 1
 
-CFLAGS=-g -nostdinc -m32 -Wall -DNORMALUNIX -DLINUX # -DUSEASM 
-LDFLAGS=-L/usr/X11R6/lib
-LIBS=-lXext -lX11 -lnsl -lm
+define object_for
+	$(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(1))))
+endef
 
-# subdirectory for objects
-O=linux
+src = $(addprefix src/,
+	# TODO: add source files lol
+)
 
-# not too sophisticated dependency
-OBJS=				\
-		$(O)/doomdef.o		\
-		$(O)/doomstat.o		\
-		$(O)/dstrings.o		\
-		$(O)/i_system.o		\
-		$(O)/i_sound.o		\
-		$(O)/i_video.o		\
-		$(O)/i_net.o			\
-		$(O)/tables.o			\
-		$(O)/f_finale.o		\
-		$(O)/f_wipe.o 		\
-		$(O)/d_main.o			\
-		$(O)/d_net.o			\
-		$(O)/d_items.o		\
-		$(O)/g_game.o			\
-		$(O)/m_menu.o			\
-		$(O)/m_misc.o			\
-		$(O)/m_argv.o  		\
-		$(O)/m_bbox.o			\
-		$(O)/m_fixed.o		\
-		$(O)/m_swap.o			\
-		$(O)/m_cheat.o		\
-		$(O)/m_random.o		\
-		$(O)/am_map.o			\
-		$(O)/p_ceilng.o		\
-		$(O)/p_doors.o		\
-		$(O)/p_enemy.o		\
-		$(O)/p_floor.o		\
-		$(O)/p_inter.o		\
-		$(O)/p_lights.o		\
-		$(O)/p_map.o			\
-		$(O)/p_maputl.o		\
-		$(O)/p_plats.o		\
-		$(O)/p_pspr.o			\
-		$(O)/p_setup.o		\
-		$(O)/p_sight.o		\
-		$(O)/p_spec.o			\
-		$(O)/p_switch.o		\
-		$(O)/p_mobj.o			\
-		$(O)/p_telept.o		\
-		$(O)/p_tick.o			\
-		$(O)/p_saveg.o		\
-		$(O)/p_user.o			\
-		$(O)/r_bsp.o			\
-		$(O)/r_data.o			\
-		$(O)/r_draw.o			\
-		$(O)/r_main.o			\
-		$(O)/r_plane.o		\
-		$(O)/r_segs.o			\
-		$(O)/r_sky.o			\
-		$(O)/r_things.o		\
-		$(O)/w_wad.o			\
-		$(O)/wi_stuff.o		\
-		$(O)/v_video.o		\
-		$(O)/st_lib.o			\
-		$(O)/st_stuff.o		\
-		$(O)/hu_stuff.o		\
-		$(O)/hu_lib.o			\
-		$(O)/s_sound.o		\
-		$(O)/z_zone.o			\
-		$(O)/info.o				\
-		$(O)/sounds.o
+CPPFLAGS = -std=c99 -Os -Wall
+CPPFLAGS = $(shell $(NWLINK) eadk-cflags)
+CPPFLAGS +=  -D__RODATA_EADK_API_LEVEL__=\"1.0\" -D__RODATA_EADK_APP_NAME__=\"DOOM\"
+LDFLAGS = -nostdlib -nostartfiles
+LDFLAGS += -Wl,--relocatable
+LDFLAGS += --specs=nano.specs
 
-all:	 $(O)/linuxxdoom
+ifeq ($(LINK_GC),1)
+	CPPFLAGS += -fdata-sections -ffunction-sections
+	LDFLAGS += -Wl,-e,main -Wl,-u,eadk_app_name -Wl,-u,eadk_app_icon -Wl,-u,eadk_api_level
+	LDFLAGS += -Wl,--gc-sections
+endif
 
+ifeq ($(LTO),1)
+	CPPFLAGS += -flto -fno-fat-lto-objects
+	CPPFLAGS += -fwhole-program
+	CPPFLAGS += -fvisibility=internal
+	LDFLAGS += -flinker-output=nolto-rel
+endif
+
+.PHONY: build
+build: $(BUILD_DIR)/DOOM.bin
+
+.PHONY: run
+run: $(BUILD_DIR)/DOOM.nwa
+	@echo "INSTALL $<"
+	$(Q) $(NWLINK) install-nwa $<
+
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.nwa
+	@echo "BIN     $@"
+	$(Q) $(NWLINK) nwa-bin $< $@
+
+$(BUILD_DIR)/DOOM.nwa: $(call object_for,$(src)) $(BUILD_DIR)/icon.o
+	@echo "LD      $@"
+	$(Q) $(CC) $(CPPFLAGS) $(LDFLAGS) $^ -o $@
+
+$(addprefix $(BUILD_DIR)/,%.o): %.c | $(BUILD_DIR)
+	@echo "CXX     $^"
+	$(Q) $(CC) $(CPPFLAGS) -c $^ -o $@
+
+$(BUILD_DIR)/icon.o: src/icon.png
+	@echo "ICON    $<"
+	$(Q) $(NWLINK) png-icon-o $< $@
+
+.PRECIOUS: $(BUILD_DIR)
+$(BUILD_DIR):
+	$(Q) mkdir -p $@/src
+
+.PHONY: clean
 clean:
-	rm -f *.o *~ *.flc
-	rm -f linux/*
-
-$(O)/linuxxdoom:	$(OBJS) $(O)/i_main.o
-	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(O)/i_main.o \
-	-o $(O)/linuxxdoom $(LIBS)
-
-$(O)/%.o:	%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-#############################################################
-#
-#############################################################
+	@echo "CLEAN"
+	$(Q) rm -rf $(BUILD_DIR)
