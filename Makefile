@@ -7,11 +7,11 @@ LINK_GC = 1
 LTO = 1
 
 define object_for
-	$(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(1))))
+$(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(basename $(1))))
 endef
 
-src = $(addprefix src/,
-	# TODO: add source files lol
+src = $(addprefix src/,\
+	eadk_vars.c \
 )
 
 CPPFLAGS = -std=c99 -Os -Wall
@@ -22,16 +22,16 @@ LDFLAGS += -Wl,--relocatable
 LDFLAGS += --specs=nano.specs
 
 ifeq ($(LINK_GC),1)
-	CPPFLAGS += -fdata-sections -ffunction-sections
-	LDFLAGS += -Wl,-e,main -Wl,-u,eadk_app_name -Wl,-u,eadk_app_icon -Wl,-u,eadk_api_level
-	LDFLAGS += -Wl,--gc-sections
+CPPFLAGS += -fdata-sections -ffunction-sections
+LDFLAGS += -Wl,-e,main -Wl,-u,eadk_app_name -Wl,-u,eadk_app_icon -Wl,-u,eadk_api_level
+LDFLAGS += -Wl,--gc-sections
 endif
 
 ifeq ($(LTO),1)
-	CPPFLAGS += -flto -fno-fat-lto-objects
-	CPPFLAGS += -fwhole-program
-	CPPFLAGS += -fvisibility=internal
-	LDFLAGS += -flinker-output=nolto-rel
+CPPFLAGS += -flto -fno-fat-lto-objects
+CPPFLAGS += -fwhole-program
+CPPFLAGS += -fvisibility=internal
+LDFLAGS += -flinker-output=nolto-rel
 endif
 
 .PHONY: build
